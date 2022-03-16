@@ -66,8 +66,6 @@ class StatusHandler_v1(rest_handler.RESTHandler):
 
         self.fd = open("/tmp/tmpAAAAAAA", "w")
 
-        self.fd.write("{}\n".format(script_dir))
-
         try:
             default_config = ConfigMap(conf_file_default_path)
 

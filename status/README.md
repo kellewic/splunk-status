@@ -1,4 +1,4 @@
-![Status Splunk app](status/static/appIcon_2x.png?)
+![Status Splunk app](static/appIcon_2x.png?)
 # Status
 This is a Splunk custom REST endpoint to consolidate many status/health checks into one place. This allows devices like load balancers to do a single health check to Splunk and get a cumulative response.
 

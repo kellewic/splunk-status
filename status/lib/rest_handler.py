@@ -123,9 +123,9 @@ class RESTHandler(PersistentServerConnectionApplication):
             # Parse the arguments
             args = self.parse_in_string(in_string)
 
-            # Get the user information
-            session_key = ""
-            user = ""
+            # Get user information
+            session_key = None
+            user = None
             try:
                 session_key = args['session']['authtoken']
                 user = args['session']['user']

@@ -130,10 +130,18 @@ class StatusHandler_v1(rest_handler.RESTHandler):
 
         try:
             entity = None
-            session_key = self.get_config_value("token")
+            session_key = None
             kvstore_status = self.get_config_value("kvstore_status")
             kvstore_replication_status = self.get_config_value("kvstore_replication_status")
 
+            ## If an auth token comes from an active user session or via Authorization header
+            ## use it over what exists in the config files.
+            if request_info.session_key is not None:
+                session_key = request_info.session_key
+            else:
+                session_key = self.get_config_value("token")
+
+            ## Get info from kvstore endpoint
             if kvstore_status or kvstore_replication_status:
                 try:
                     entity = splunk.entity.getEntity('/kvstore', 'status', namespace=app_name, sessionKey=session_key, owner='-')
@@ -172,7 +180,7 @@ class StatusHandler_v1(rest_handler.RESTHandler):
 
 
         except splunk.AuthenticationFailed:
-            return self.render_error_json("Authentication token expired or invalid", response_code=401)
+            return self.render_error_json("Authentication token expired or invalid")
 
         except Exception as e:
             return self._render_generic_error_json(e)
@@ -193,7 +201,7 @@ class StatusHandler_v1(rest_handler.RESTHandler):
             return self.render_json({
                 'message': self.health_data,
                 'success': success,
-                'iter': 'PAYLOAD_41',
+                'iter': 'PAYLOAD_44',
             }, response_code=response_code)
 
         except Exception as e:

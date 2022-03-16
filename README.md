@@ -1,0 +1,41 @@
+![Status Splunk app](status/static/appIcon_2x.png?)
+# Status
+This is a Splunk custom REST endpoint to consolidate many status/health checks into one place. This allows devices like load balancers to do a single health check to Splunk and get a cumulative response.
+
+## Details
+* Runs on Splunk's web port and accessible via `WEB_LOC/splunkd/__raw/services/status/v1/health`
+* Requires no authentication
+    * Can set `requireAuthentication=true` in [restmap.conf](status/default/restmap.conf) to turn it on
+    * Can set `acceptFrom` in [restmap.conf](status/default/restmap.conf) to limit what IPs can access
+
+## Checks
+* web port - this endpoint is accessible here and calls will fail if the web port is not up
+* splunkd management - this endpoint does REST calls to various other endpoints. It catches any exceptions and returns them as errors to the caller.
+* kvstore status
+* kvstore replication status
+* HEC port up/down
+
+## Returns
+JSON is returned with the following formats.
+
+### Success JSON
+```
+{
+    "message": {
+        "overall_status": 1,
+        "kvstore_status": "ready",
+        "kvstore_replication_status": "kv store captain",
+        "hec_status": "ready"
+    },
+    "success": true
+}
+```
+
+## Error JSON
+```
+{
+    "success": false,
+    "message": "[ERROR] <AuthenticationFailed> [HTTP 401] Client is not authenticated"
+}
+```
+

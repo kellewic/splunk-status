@@ -32,8 +32,6 @@ import splunklib.client as client
 ## HEC port - connects to socket to see if it's up
 ##
 ## TODO:
-## check with authenticationRequired = true
-##  - overrides the token inside config files
 ##
 ## SHC status - /services/shcluster/member/info
 ## SSL cert checks

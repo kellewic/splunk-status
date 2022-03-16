@@ -6,6 +6,7 @@ This is a Splunk custom REST endpoint to consolidate many status/health checks i
 * Runs on Splunk's web port and accessible via `WEB_LOC/splunkd/__raw/services/status/v1/health`
 * Requires no authentication
     * Can set `requireAuthentication=true` in [restmap.conf](status/default/restmap.conf) to turn it on
+        * If `requireAuthentication=true` is used then the endpoint needs to be accessed via `WEB_LOC/services/status/v1/health`. In this case, the web port will be checked via an HTTP(S) request.
     * Can set `acceptFrom` in [restmap.conf](status/default/restmap.conf) to limit what IPs can access
 
 ## Checks
@@ -14,6 +15,9 @@ This is a Splunk custom REST endpoint to consolidate many status/health checks i
 * kvstore status
 * kvstore replication status
 * HEC port up/down
+
+## Configuration
+The configurations are in [status_rest_handler.conf](status/default/status_rest_handler.conf) and documented there.
 
 ## Returns
 JSON is returned with the following formats.

@@ -197,6 +197,7 @@ class StatusHandler_v1(rest_handler.RESTHandler):
                 finally:    
                     self.set_status_entry("hec_status", ["ready"])
 
+            ## Web port check
             if check_web_port is True:
                 ## Set web status based on status arg
                 def set_web_status(status):

@@ -3,10 +3,12 @@
 This is a Splunk custom REST endpoint to consolidate many status/health checks into one place. This allows devices like load balancers to do a single health check to Splunk and get a cumulative response.
 
 ## Details
-* Runs on Splunk's web port and accessible via `WEB_LOC/splunkd/__raw/services/status/v1/health`
-* Requires no authentication
+* Is exposed on Splunk's web port and accessible via: 
+    * `/splunkd/__raw/services/status/v1/health` on the web port
+    * `/services/status/v1/health` on the management port
+* Requires no authentication by default
     * Can set `requireAuthentication=true` in [restmap.conf](default/restmap.conf) to turn it on
-        * If `requireAuthentication=true` is used then the endpoint needs to be accessed via `WEB_LOC/services/status/v1/health`. In this case, the web port will be checked via an HTTP(S) request.
+        * If `requireAuthentication=true` is used then the endpoint needs to be accessed via the management port. In this case, the web port will be checked via an HTTP(S) request.
     * Can set `acceptFrom` in [restmap.conf](default/restmap.conf) to limit what IPs can access
 
 ## Checks

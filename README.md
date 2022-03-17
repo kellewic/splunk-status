@@ -40,7 +40,7 @@ JSON is returned with the following formats.
 }
 ```
 
-## Error JSON
+### Error JSON
 ```
 {
     "success": false,

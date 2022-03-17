@@ -2,7 +2,7 @@
 ## 2021-07-29
 ##
 ## CHANGES:
-##  * None
+##  * Wrapped session_key and user session assignments in try to allow for unauthenticated REST endpoints (2022-03-12)
 ##
 
 import os

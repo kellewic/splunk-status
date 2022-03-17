@@ -1,4 +1,4 @@
-import logging, os, re, socket, sys
+import logging, os, re, requests, socket, sys
 import splunk
 import splunk.entity
 import splunk.util
@@ -19,7 +19,7 @@ logger = logging.getLogger(script_name)
 
 ## app-specific libs
 sys.path.insert(0, os.path.join(script_dir, "..", "lib"))
-import rest_handler
+import certifi, rest_handler
 import splunklib.client as client
 
 ## Checks the status/health of various Splunk components. This service is exposed via the Splunk web port.
@@ -47,6 +47,8 @@ class StatusHandler_v1(rest_handler.RESTHandler):
         ## Health check details returned
         self.health_data = {
             "overall_status": -1,
+            "web_status": None,
+            "splunkd_status": None,
             "kvstore_status": None,
             "kvstore_replication_status": None,
             "hec_status": None,
@@ -129,15 +131,22 @@ class StatusHandler_v1(rest_handler.RESTHandler):
         try:
             entity = None
             session_key = None
-            kvstore_status = self.get_config_value("kvstore_status")
-            kvstore_replication_status = self.get_config_value("kvstore_replication_status")
+            check_web_port = False
+            kvstore_status = self.get_config_value("kvstore_status", bool)
+            kvstore_replication_status = self.get_config_value("kvstore_replication_status", bool)
 
             ## If an auth token comes from an active user session or via Authorization header
             ## use it over what exists in the config files.
             if request_info.session_key is not None:
                 session_key = request_info.session_key
+
+                ## If we get a session token here, it's very likely via port 8089
+                ## and not the web port so let's check if the web port is up
+                if self.get_config_value("web_status", bool) is True:
+                    check_web_port = True
             else:
                 session_key = self.get_config_value("token")
+
 
             ## Get info from kvstore endpoint
             if kvstore_status or kvstore_replication_status:
@@ -149,6 +158,18 @@ class StatusHandler_v1(rest_handler.RESTHandler):
 
                 except Exception as e:
                     return self._render_generic_error_json(e)
+
+            else:
+                ## Check splunkd port using a generic endpoint
+                try:
+                    entity = splunk.entity.getEntity('/server', 'settings', namespace=app_name, sessionKey=session_key, owner='-')
+
+                except Exception as e:
+                    return self._render_generic_error_json(e)
+
+            ## If we get here then the splunkd management port is working
+            self.set_health_data_entry("splunkd_status", "ready")
+            self.set_status_entry("splunkd_status", ["ready"])
 
             ## KV store status
             if kvstore_status:
@@ -163,7 +184,7 @@ class StatusHandler_v1(rest_handler.RESTHandler):
                 self.set_status_entry("kvstore_replication_status", ["KV Store captain", "Non-captain KV Store member"])
 
             ## HEC status
-            if self.get_config_value("hec_status"):
+            if self.get_config_value("hec_status", bool):
                 hec_port = self.get_config_value("hec_port", int)
 
                 try:
@@ -175,6 +196,26 @@ class StatusHandler_v1(rest_handler.RESTHandler):
                     self.set_health_data_entry("hec_status", "failed - {}".format(str(e)))
                 finally:    
                     self.set_status_entry("hec_status", ["ready"])
+
+            if check_web_port is True:
+                ## Set web status based on status arg
+                def set_web_status(status):
+                    self.set_health_data_entry("web_status", status)
+                    self.set_status_entry("web_status", ["ready"])
+
+                try:
+                    timeout = self.get_config_value("web_status_timeout", int)
+                    url = "{}".format(splunk.getWebServerInfo())
+                    response = requests.get(url, timeout=timeout, verify=certifi.where())
+
+                    ## Check if we got a 200 HTTP status code and set status accordingly
+                    if response.status_code == 200:
+                        set_web_status("ready")
+                    else:
+                        set_web_status("failed - web port returned {} status for {}".format(response.status_code, url))
+
+                except Exception as e:
+                    return self._render_generic_error_json(e)
 
 
         except splunk.AuthenticationFailed:
@@ -199,7 +240,7 @@ class StatusHandler_v1(rest_handler.RESTHandler):
             return self.render_json({
                 'message': self.health_data,
                 'success': success,
-                'iter': 'PAYLOAD_44',
+                'iter': 'PAYLOAD_51',
             }, response_code=response_code)
 
         except Exception as e:

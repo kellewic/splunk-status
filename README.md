@@ -10,8 +10,8 @@ This is a Splunk custom REST endpoint to consolidate many status/health checks i
     * Can set `acceptFrom` in [restmap.conf](status/default/restmap.conf) to limit what IPs can access
 
 ## Checks
-* web port - this endpoint is accessible here and calls will fail if the web port is not up
-* splunkd management - this endpoint does REST calls to various other endpoints. It catches any exceptions and returns them as errors to the caller.
+* web port
+* splunkd management
 * kvstore status
 * kvstore replication status
 * HEC port up/down
@@ -29,7 +29,9 @@ JSON is returned with the following formats.
         "overall_status": 1,
         "kvstore_status": "ready",
         "kvstore_replication_status": "kv store captain",
-        "hec_status": "ready"
+        "hec_status": "ready",
+        "web_status": "ready",
+        "splunkd_status": "ready"
     },
     "success": true
 }

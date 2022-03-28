@@ -1,5 +1,6 @@
-local/
+TODO
 install.txt
+local/
 *.tar.gz
 
 # Byte-compiled / optimized / DLL files

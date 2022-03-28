@@ -253,7 +253,7 @@ class StatusHandler_v1(rest_handler.RESTHandler):
                     self.process_status(True, HEC_STATUS, READY, READY_LIST)
 
                 except Exception as e:
-                    self.process_status(True, HEC_STATUS, "failed - {}".format(str(e)), READY_LIST
+                    self.process_status(True, HEC_STATUS, "failed - {}".format(str(e)), READY_LIST)
 
 
             ## Web port check

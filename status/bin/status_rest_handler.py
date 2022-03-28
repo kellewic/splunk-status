@@ -5,7 +5,6 @@ import splunk.util
 from splunk.conf_util import ConfigMap, ConfigMapError
 
 file_realpath = os.path.realpath(__file__)
-
 script_dir = os.path.dirname(file_realpath)
 script_name = os.path.splitext(os.path.basename(file_realpath))[0]
 
@@ -34,7 +33,6 @@ KVSTORE_STANDALONE = "kvstore_standalone"
 KVSTORE_STATUS = "kvstore_status"
 OVERALL_STATUS = "overall_status"
 READY = "ready"
-READY_LIST = [READY]
 SHC_IS_REGISTERED = "shc_is_registered"
 SHC_MAINTENANCE_MODE = "shc_maintenance_mode"
 SHC_STATUS = "shc_status"
@@ -44,6 +42,11 @@ SPLUNKD_STATUS = "splunkd_status"
 TOKEN = "token"
 WEB_STATUS = "web_status"
 WEB_STATUS_TIMEOUT = "web_status_timeout"
+
+READY_LIST = [READY]
+ZERO_LIST = ["0"]
+ONE_LIST = ["1"]
+
 
 ## REST endpoint class
 class StatusHandler_v1(rest_handler.RESTHandler):
@@ -76,8 +79,6 @@ class StatusHandler_v1(rest_handler.RESTHandler):
         ## Captures any exceptions when loading configs since they are ignored
         ## when caught within __init__
         self.return_now = None
-
-        self.fd = open("/tmp/tmpAAAAAAA", "w")
 
         try:
             default_config = ConfigMap(conf_file_default_path)
@@ -197,49 +198,41 @@ class StatusHandler_v1(rest_handler.RESTHandler):
                     return error
 
             else:
+                ## If kvstore status isn't configured, this checks the splunkd port
                 (entity, error) = self.get_entity('/server', 'settings', namespace=app_name, sessionKey=session_key)
 
                 if error is not None:
                     return error
 
 
-            ## If we get here then the splunkd management port is working
+            ## If we get here then the splunkd port is working
             self.process_status(True, SPLUNKD_STATUS, READY, READY_LIST)
 
             ## KV store status
             self.process_status(kvstore_status, KVSTORE_STATUS, entity["current"]["status"], READY_LIST)
             self.process_status(kvstore_replication_status, KVSTORE_REPLICATION_STATUS, entity["current"]["replicationStatus"], ["KV Store captain", "Non-captain KV Store member"])
-            self.process_status(kvstore_disabled, KVSTORE_DISABLED, entity["current"]["disabled"], ["0"])
+            self.process_status(kvstore_disabled, KVSTORE_DISABLED, entity["current"]["disabled"], ZERO_LIST)
 
 
             ## SHC status
             if in_shc:
                 ## "0" is a valid value for SHC kvstore
-                self.process_status(kvstore_standalone, KVSTORE_STANDALONE, entity["current"]["standalone"], ["0"])
+                self.process_status(kvstore_standalone, KVSTORE_STANDALONE, entity["current"]["standalone"], ZERO_LIST)
 
                 (entity, error) = self.get_entity('/shcluster/member', 'info', namespace=app_name, sessionKey=session_key)
 
                 if error is not None:
                     return error
 
-                if shc_is_registered:
-                    pass
-
-                if shc_maintenance_mode:
-                    pass
-
-                if shc_status:
-                    pass
-
-                if shc_captain_service_ready_flag:
-                    pass
-
-                if shc_captain_initialized_flag:
-                    pass
+                self.process_status(shc_is_registered, SHC_IS_REGISTERED, entity["is_registered"], ONE_LIST)
+                self.process_status(shc_maintenance_mode, SHC_MAINTENANCE_MODE, entity["maintenance_mode"], ZERO_LIST)
+                self.process_status(shc_status, SHC_STATUS, entity["status"], ["Up"])
+                self.process_status(shc_captain_service_ready_flag, SHC_CAPTAIN_SERVICE_READY_FLAG, entity["captain"]["service_ready_flag"], ONE_LIST)
+                self.process_status(shc_captain_initialized_flag, SHC_CAPTAIN_INITIALIZED_FLAG, entity["captain"]["initialized_flag"], ONE_LIST)
 
             else:
                 ## "1" is a valid value for non-SHC kvstore
-                self.process_status(kvstore_standalone, KVSTORE_STANDALONE, entity["current"]["standalone"], ["1"])
+                self.process_status(kvstore_standalone, KVSTORE_STANDALONE, entity["current"]["standalone"], ONE_LIST)
 
 
             ## HEC CHECKS
@@ -290,12 +283,10 @@ class StatusHandler_v1(rest_handler.RESTHandler):
                 response_code = 503
                 success = False
 
-            self.fd.close()
-
             return self.render_json({
                 'message': self.health_data,
                 'success': success,
-                'iter': 'PAYLOAD_55',
+                'iter': 'PAYLOAD_56',
             }, response_code=response_code)
 
         except Exception as e:

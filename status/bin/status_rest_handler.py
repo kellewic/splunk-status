@@ -35,6 +35,11 @@ KVSTORE_STATUS = "kvstore_status"
 OVERALL_STATUS = "overall_status"
 READY = "ready"
 READY_LIST = [READY]
+SHC_IS_REGISTERED = "shc_is_registered"
+SHC_MAINTENANCE_MODE = "shc_maintenance_mode"
+SHC_STATUS = "shc_status"
+SHC_CAPTAIN_SERVICE_READY_FLAG = "shc_captain_service_ready_flag"
+SHC_CAPTAIN_INITIALIZED_FLAG = "shc_captain_initialized_flag"
 SPLUNKD_STATUS = "splunkd_status"
 TOKEN = "token"
 WEB_STATUS = "web_status"
@@ -52,14 +57,19 @@ class StatusHandler_v1(rest_handler.RESTHandler):
 
         ## Health check details returned
         self.health_data = {
-            OVERALL_STATUS: -1,
-            WEB_STATUS: None,
-            SPLUNKD_STATUS: None,
-            KVSTORE_STATUS: None,
-            KVSTORE_REPLICATION_STATUS: None,
-            KVSTORE_DISABLED: None,
-            KVSTORE_STANDALONE: None,
             HEC_STATUS: None,
+            KVSTORE_DISABLED: None,
+            KVSTORE_REPLICATION_STATUS: None,
+            KVSTORE_STANDALONE: None,
+            KVSTORE_STATUS: None,
+            OVERALL_STATUS: -1,
+            SHC_IS_REGISTERED: None,
+            SHC_MAINTENANCE_MODE: None,
+            SHC_STATUS: None,
+            SHC_CAPTAIN_SERVICE_READY_FLAG: None,
+            SHC_CAPTAIN_INITIALIZED_FLAG: None,
+            SPLUNKD_STATUS: None,
+            WEB_STATUS: None,
         }
 
         ## List of 0/1 indicators that become the overall_status in health_data
@@ -130,6 +140,23 @@ class StatusHandler_v1(rest_handler.RESTHandler):
         else:
             self.health_data[OVERALL_STATUS] = 1
 
+    def get_entity(self, entityPath, entityName, namespace=None, sessionKey=None):
+        error = None
+        entity = None
+
+        try:
+            entity = splunk.entity.getEntity(entityPath, entityName, namespace=namespace, sessionKey=sessionKey, owner='-')
+
+        except splunk.ResourceNotFound as e:
+            message = "There was an issue accessing /services{}/{} REST endpoint. The resource could not be found.".format(entityPath, entityName)
+            error = self._render_generic_error_json(e, message=message)
+
+        except Exception as e:
+            error = self._render_generic_error_json(e)
+
+        return (entity, error)
+
+
     ## Main health check
     def get_health(self, request_info):
         ## Check if __init__ had any exceptions and return them
@@ -144,6 +171,11 @@ class StatusHandler_v1(rest_handler.RESTHandler):
             kvstore_standalone = self.get_config_value(KVSTORE_STANDALONE, bool)
             kvstore_status = self.get_config_value(KVSTORE_STATUS, bool)
             kvstore_replication_status = self.get_config_value(KVSTORE_REPLICATION_STATUS, bool)
+            shc_is_registered = self.get_config_value(SHC_IS_REGISTERED, bool)
+            shc_maintenance_mode = self.get_config_value(SHC_MAINTENANCE_MODE, bool)
+            shc_status = self.get_config_value(SHC_STATUS, bool)
+            shc_captain_service_ready_flag = self.get_config_value(SHC_CAPTAIN_SERVICE_READY_FLAG, bool)
+            shc_captain_initialized_flag = self.get_config_value(SHC_CAPTAIN_INITIALIZED_FLAG, bool)
             web_status = self.get_config_value(WEB_STATUS, bool)
 
             ## If an auth token comes from an active user session or via Authorization header
@@ -154,24 +186,19 @@ class StatusHandler_v1(rest_handler.RESTHandler):
                 session_key = self.get_config_value(TOKEN)
 
 
-            ## Get info from kvstore endpoint
+            ## KV store endpoint
             if kvstore_status or kvstore_replication_status or kvstore_disabled or kvstore_standalone:
-                try:
-                    entity = splunk.entity.getEntity('/kvstore', 'status', namespace=app_name, sessionKey=session_key, owner='-')
+                (entity, error) = self.get_entity('/kvstore', 'status', namespace=app_name, sessionKey=session_key)
 
-                except splunk.ResourceNotFound as e:
-                    return self._render_generic_error_json(e, message="There was an issue accessing /services/kvstore/status REST endpoint. The resource could not be found.")
-
-                except Exception as e:
-                    return self._render_generic_error_json(e)
+                if error is not None:
+                    return error
 
             else:
-                ## Check splunkd port using a generic endpoint
-                try:
-                    entity = splunk.entity.getEntity('/server', 'settings', namespace=app_name, sessionKey=session_key, owner='-')
+                (entity, error) = self.get_entity('/server', 'settings', namespace=app_name, sessionKey=session_key)
 
-                except Exception as e:
-                    return self._render_generic_error_json(e)
+                if error is not None:
+                    return error
+
 
             ## If we get here then the splunkd management port is working
             self.set_health_data_entry(SPLUNKD_STATUS, READY)
@@ -203,22 +230,32 @@ class StatusHandler_v1(rest_handler.RESTHandler):
 
             ## SHC status
             if in_shc:
-                ## TODO
-
+                ## "0" is a valid value for SHC kvstore
                 if kvstore_standalone:
                     self.set_status_entry(KVSTORE_STANDALONE, ["0"])
 
-                try:
-                    entity = splunk.entity.getEntity('/shcluster/member', 'info', namespace=app_name, sessionKey=session_key, owner='-')
+                (entity, error) = self.get_entity('/shcluster/member', 'info', namespace=app_name, sessionKey=session_key)
 
-                except splunk.ResourceNotFound as e:
-                    return self._render_generic_error_json(e, message="There was an issue accessing /services/shcluster/member/info REST endpoint. The resource could not be found.")
+                if error is not None:
+                    return error
 
-                except Exception as e:
-                    return self._render_generic_error_json(e)
+                if shc_is_registered:
+                    pass
+
+                if shc_maintenance_mode:
+                    pass
+
+                if shc_status:
+                    pass
+
+                if shc_captain_service_ready_flag:
+                    pass
+
+                if shc_captain_initialized_flag:
+                    pass
+
             else:
-                ## TODO
-
+                ## "1" is a valid value for non-SHC kvstore
                 if kvstore_standalone:
                     self.set_status_entry(KVSTORE_STANDALONE, ["1"])
 
@@ -236,6 +273,7 @@ class StatusHandler_v1(rest_handler.RESTHandler):
                     self.set_health_data_entry(HEC_STATUS, "failed - {}".format(str(e)))
                 finally:    
                     self.set_status_entry(HEC_STATUS, READY_LIST)
+
 
             ## Web port check
             if web_status is True:
@@ -257,7 +295,6 @@ class StatusHandler_v1(rest_handler.RESTHandler):
 
                 except Exception as e:
                     return self._render_generic_error_json(e)
-
 
         except splunk.AuthenticationFailed:
             return self.render_error_json("Authentication token expired or invalid")

@@ -45,12 +45,7 @@ TOKEN = "token"
 WEB_STATUS = "web_status"
 WEB_STATUS_TIMEOUT = "web_status_timeout"
 
-## TODO:
-##
-## SSL cert checks
-## Check with kvstore disabled so port isn't up
-## Check HEC via <protocol>://<host>:8088/services/collector/health using requests module
-##
+## REST endpoint class
 class StatusHandler_v1(rest_handler.RESTHandler):
     def __init__(self, command_line, command_arg):
         super(StatusHandler_v1, self).__init__(command_line, command_arg, logger)
@@ -133,6 +128,12 @@ class StatusHandler_v1(rest_handler.RESTHandler):
         else:
             self.status_checks.append(0)
 
+    ## Save status values for individual and overall status determinations
+    def process_status(self, config_val, status_key, status_val, status_good_vals):
+        if config_val:
+            self.set_health_data_entry(status_key, status_val)
+            self.set_status_entry(status_key, status_good_vals)
+
     ## Sets the overall status based on how many passes/fails exist in status_checks
     def set_overall_status(self):
         if len(self.status_checks) != sum(self.status_checks):
@@ -140,6 +141,7 @@ class StatusHandler_v1(rest_handler.RESTHandler):
         else:
             self.health_data[OVERALL_STATUS] = 1
 
+    ## Wrapper around splunk.getEntity() to catch and return common exceptions
     def get_entity(self, entityPath, entityName, namespace=None, sessionKey=None):
         error = None
         entity = None
@@ -157,7 +159,7 @@ class StatusHandler_v1(rest_handler.RESTHandler):
         return (entity, error)
 
 
-    ## Main health check
+    ## Health check handler
     def get_health(self, request_info):
         ## Check if __init__ had any exceptions and return them
         if self.return_now is not None:
@@ -167,6 +169,7 @@ class StatusHandler_v1(rest_handler.RESTHandler):
             entity = None
             session_key = None
             in_shc = self.get_config_value(IN_SHC, bool)
+            hec_status = self.get_config_value(HEC_STATUS, bool)
             kvstore_disabled = self.get_config_value(KVSTORE_DISABLED, bool)
             kvstore_standalone = self.get_config_value(KVSTORE_STANDALONE, bool)
             kvstore_status = self.get_config_value(KVSTORE_STATUS, bool)
@@ -186,7 +189,7 @@ class StatusHandler_v1(rest_handler.RESTHandler):
                 session_key = self.get_config_value(TOKEN)
 
 
-            ## KV store endpoint
+            ## Call KV store endpoint if configuration requires it
             if kvstore_status or kvstore_replication_status or kvstore_disabled or kvstore_standalone:
                 (entity, error) = self.get_entity('/kvstore', 'status', namespace=app_name, sessionKey=session_key)
 
@@ -201,38 +204,18 @@ class StatusHandler_v1(rest_handler.RESTHandler):
 
 
             ## If we get here then the splunkd management port is working
-            self.set_health_data_entry(SPLUNKD_STATUS, READY)
-            self.set_status_entry(SPLUNKD_STATUS, READY_LIST)
+            self.process_status(True, SPLUNKD_STATUS, READY, READY_LIST)
 
             ## KV store status
-            if kvstore_status:
-                kvstore_status = entity["current"]["status"]
-                self.set_health_data_entry(KVSTORE_STATUS, kvstore_status)
-                self.set_status_entry(KVSTORE_STATUS, READY_LIST)
-
-            ## KV store replication status
-            if kvstore_replication_status:
-                kvstore_replication_status = entity["current"]["replicationStatus"]
-                self.set_health_data_entry(KVSTORE_REPLICATION_STATUS, kvstore_replication_status)
-                self.set_status_entry(KVSTORE_REPLICATION_STATUS, ["KV Store captain", "Non-captain KV Store member"])
-
-            ## KV store disabled
-            if kvstore_disabled:
-                kvstore_disabled = entity["current"]["disabled"]
-                self.set_health_data_entry(KVSTORE_DISABLED, kvstore_disabled)
-                self.set_status_entry(KVSTORE_DISABLED, ["0"])
-
-            ## KV store standalone
-            if kvstore_standalone:
-                kvstore_standalone = entity["current"]["standalone"]
-                self.set_health_data_entry(KVSTORE_STANDALONE, kvstore_standalone)
+            self.process_status(kvstore_status, KVSTORE_STATUS, entity["current"]["status"], READY_LIST)
+            self.process_status(kvstore_replication_status, KVSTORE_REPLICATION_STATUS, entity["current"]["replicationStatus"], ["KV Store captain", "Non-captain KV Store member"])
+            self.process_status(kvstore_disabled, KVSTORE_DISABLED, entity["current"]["disabled"], ["0"])
 
 
             ## SHC status
             if in_shc:
                 ## "0" is a valid value for SHC kvstore
-                if kvstore_standalone:
-                    self.set_status_entry(KVSTORE_STANDALONE, ["0"])
+                self.process_status(kvstore_standalone, KVSTORE_STANDALONE, entity["current"]["standalone"], ["0"])
 
                 (entity, error) = self.get_entity('/shcluster/member', 'info', namespace=app_name, sessionKey=session_key)
 
@@ -256,32 +239,25 @@ class StatusHandler_v1(rest_handler.RESTHandler):
 
             else:
                 ## "1" is a valid value for non-SHC kvstore
-                if kvstore_standalone:
-                    self.set_status_entry(KVSTORE_STANDALONE, ["1"])
+                self.process_status(kvstore_standalone, KVSTORE_STANDALONE, entity["current"]["standalone"], ["1"])
 
 
-            ## HEC status
-            if self.get_config_value(HEC_STATUS, bool):
+            ## HEC CHECKS
+            if hec_status:
                 hec_port = self.get_config_value(HEC_PORT, int)
 
                 try:
                     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     s.connect((self.get_config_value(HEC_IP), hec_port))
                     s.close()
-                    self.set_health_data_entry(HEC_STATUS, READY)
+                    self.process_status(True, HEC_STATUS, READY, READY_LIST
+
                 except Exception as e:
-                    self.set_health_data_entry(HEC_STATUS, "failed - {}".format(str(e)))
-                finally:    
-                    self.set_status_entry(HEC_STATUS, READY_LIST)
+                    self.process_status(True, HEC_STATUS, "failed - {}".format(str(e)), READY_LIST
 
 
             ## Web port check
-            if web_status is True:
-                ## Set web status based on status arg
-                def set_web_status(status):
-                    self.set_health_data_entry(WEB_STATUS, status)
-                    self.set_status_entry(WEB_STATUS, READY_LIST)
-
+            if web_status:
                 try:
                     timeout = self.get_config_value(WEB_STATUS_TIMEOUT, int)
                     url = "{}".format(splunk.getWebServerInfo())
@@ -289,9 +265,10 @@ class StatusHandler_v1(rest_handler.RESTHandler):
 
                     ## Check if we got a 200 HTTP status code and set status accordingly
                     if response.status_code == 200:
-                        set_web_status(READY)
+                        self.process_status(True, WEB_STATUS, READY, READY_LIST)
+
                     else:
-                        set_web_status("failed - web port returned {} status for {}".format(response.status_code, url))
+                        self.process_status(True, WEB_STATUS, "failed - web port returned {} status for {}".format(response.status_code, url), READY_LIST)
 
                 except Exception as e:
                     return self._render_generic_error_json(e)

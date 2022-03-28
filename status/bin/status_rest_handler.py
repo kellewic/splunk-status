@@ -27,7 +27,10 @@ DEFAULT = "default"
 HEC_PORT = "hec_port"
 HEC_IP = "hec_ip"
 HEC_STATUS = "hec_status"
+IN_SHC = "in_shc"
+KVSTORE_DISABLED = "kvstore_disabled"
 KVSTORE_REPLICATION_STATUS = "kvstore_replication_status"
+KVSTORE_STANDALONE = "kvstore_standalone"
 KVSTORE_STATUS = "kvstore_status"
 OVERALL_STATUS = "overall_status"
 READY = "ready"
@@ -39,7 +42,6 @@ WEB_STATUS_TIMEOUT = "web_status_timeout"
 
 ## TODO:
 ##
-## SHC status - /services/shcluster/member/info
 ## SSL cert checks
 ## Check with kvstore disabled so port isn't up
 ## Check HEC via <protocol>://<host>:8088/services/collector/health using requests module
@@ -55,6 +57,8 @@ class StatusHandler_v1(rest_handler.RESTHandler):
             SPLUNKD_STATUS: None,
             KVSTORE_STATUS: None,
             KVSTORE_REPLICATION_STATUS: None,
+            KVSTORE_DISABLED: None,
+            KVSTORE_STANDALONE: None,
             HEC_STATUS: None,
         }
 
@@ -135,6 +139,9 @@ class StatusHandler_v1(rest_handler.RESTHandler):
         try:
             entity = None
             session_key = None
+            in_shc = self.get_config_value(IN_SHC, bool)
+            kvstore_disabled = self.get_config_value(KVSTORE_DISABLED, bool)
+            kvstore_standalone = self.get_config_value(KVSTORE_STANDALONE, bool)
             kvstore_status = self.get_config_value(KVSTORE_STATUS, bool)
             kvstore_replication_status = self.get_config_value(KVSTORE_REPLICATION_STATUS, bool)
             web_status = self.get_config_value(WEB_STATUS, bool)
@@ -148,7 +155,7 @@ class StatusHandler_v1(rest_handler.RESTHandler):
 
 
             ## Get info from kvstore endpoint
-            if kvstore_status or kvstore_replication_status:
+            if kvstore_status or kvstore_replication_status or kvstore_disabled or kvstore_standalone:
                 try:
                     entity = splunk.entity.getEntity('/kvstore', 'status', namespace=app_name, sessionKey=session_key, owner='-')
 
@@ -181,6 +188,40 @@ class StatusHandler_v1(rest_handler.RESTHandler):
                 kvstore_replication_status = entity["current"]["replicationStatus"]
                 self.set_health_data_entry(KVSTORE_REPLICATION_STATUS, kvstore_replication_status)
                 self.set_status_entry(KVSTORE_REPLICATION_STATUS, ["KV Store captain", "Non-captain KV Store member"])
+
+            ## KV store disabled
+            if kvstore_disabled:
+                kvstore_disabled = entity["current"]["disabled"]
+                self.set_health_data_entry(KVSTORE_DISABLED, kvstore_disabled)
+                self.set_status_entry(KVSTORE_DISABLED, ["0"])
+
+            ## KV store standalone
+            if kvstore_standalone:
+                kvstore_standalone = entity["current"]["standalone"]
+                self.set_health_data_entry(KVSTORE_STANDALONE, kvstore_standalone)
+
+
+            ## SHC status
+            if in_shc:
+                ## TODO
+
+                if kvstore_standalone:
+                    self.set_status_entry(KVSTORE_STANDALONE, ["0"])
+
+                try:
+                    entity = splunk.entity.getEntity('/shcluster/member', 'info', namespace=app_name, sessionKey=session_key, owner='-')
+
+                except splunk.ResourceNotFound as e:
+                    return self._render_generic_error_json(e, message="There was an issue accessing /services/shcluster/member/info REST endpoint. The resource could not be found.")
+
+                except Exception as e:
+                    return self._render_generic_error_json(e)
+            else:
+                ## TODO
+
+                if kvstore_standalone:
+                    self.set_status_entry(KVSTORE_STANDALONE, ["1"])
+
 
             ## HEC status
             if self.get_config_value(HEC_STATUS, bool):

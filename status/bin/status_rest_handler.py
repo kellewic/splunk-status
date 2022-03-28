@@ -219,6 +219,7 @@ class StatusHandler_v1(rest_handler.RESTHandler):
                 ## "0" is a valid value for SHC kvstore
                 self.process_status(kvstore_standalone, KVSTORE_STANDALONE, entity["current"]["standalone"], ZERO_LIST)
 
+                ## SHC member status
                 (entity, error) = self.get_entity('/shcluster/member', 'info', namespace=app_name, sessionKey=session_key)
 
                 if error is not None:
@@ -227,6 +228,13 @@ class StatusHandler_v1(rest_handler.RESTHandler):
                 self.process_status(shc_is_registered, SHC_IS_REGISTERED, entity["is_registered"], ONE_LIST)
                 self.process_status(shc_maintenance_mode, SHC_MAINTENANCE_MODE, entity["maintenance_mode"], ZERO_LIST)
                 self.process_status(shc_status, SHC_STATUS, entity["status"], ["Up"])
+
+                ## SHC status
+                (entity, error) = self.get_entity('/shcluster', 'status', namespace=app_name, sessionKey=session_key)
+
+                if error is not None:
+                    return error
+
                 self.process_status(shc_captain_service_ready_flag, SHC_CAPTAIN_SERVICE_READY_FLAG, entity["captain"]["service_ready_flag"], ONE_LIST)
                 self.process_status(shc_captain_initialized_flag, SHC_CAPTAIN_INITIALIZED_FLAG, entity["captain"]["initialized_flag"], ONE_LIST)
 

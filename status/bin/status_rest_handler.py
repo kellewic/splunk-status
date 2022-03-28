@@ -250,7 +250,7 @@ class StatusHandler_v1(rest_handler.RESTHandler):
                     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     s.connect((self.get_config_value(HEC_IP), hec_port))
                     s.close()
-                    self.process_status(True, HEC_STATUS, READY, READY_LIST
+                    self.process_status(True, HEC_STATUS, READY, READY_LIST)
 
                 except Exception as e:
                     self.process_status(True, HEC_STATUS, "failed - {}".format(str(e)), READY_LIST
@@ -295,7 +295,7 @@ class StatusHandler_v1(rest_handler.RESTHandler):
             return self.render_json({
                 'message': self.health_data,
                 'success': success,
-                'iter': 'PAYLOAD_54',
+                'iter': 'PAYLOAD_55',
             }, response_code=response_code)
 
         except Exception as e:

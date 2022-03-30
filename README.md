@@ -13,11 +13,11 @@ This is a Splunk custom REST endpoint to consolidate many status/health checks i
 
 ## Checks
 All checks are on by default with the exception of the *web port* check. Since this endpoint is exposed via the web port, that check is good as long as the endpoint is working. If using the management port, the *web port* check could be turned on.
+* kvstore status
+* search head cluster status
+* HEC port up/down
 * web port
 * splunkd management port
-* kvstore status
-* kvstore replication status
-* HEC port up/down
 
 ## Configuration
 The configurations are in [status_rest_handler.conf](status/default/status_rest_handler.conf) and documented there.
@@ -29,12 +29,19 @@ JSON is returned with the following formats.
 ```
 {
     "message": {
-        "overall_status": 1,
-        "kvstore_status": "ready",
-        "kvstore_replication_status": "kv store captain",
         "hec_status": "ready",
-        "web_status": "ready",
-        "splunkd_status", "ready"
+        "kvstore_disabled": "0",
+        "kvstore_replication_status": "non-captain kv store member",
+        "kvstore_standalone": "0",
+        "kvstore_status": "ready",
+        "overall_status": 1,
+        "shc_is_registered": "1",
+        "shc_maintenance_mode": "0",
+        "shc_status": "up",
+        "shc_captain_service_ready_flag": "1",
+        "shc_captain_initialized_flag": "1",
+        "splunkd_status": "ready",
+        "web_status": null
     },
     "success": true
 }
@@ -47,3 +54,4 @@ JSON is returned with the following formats.
     "message": "[ERROR] <AuthenticationFailed> [HTTP 401] Client is not authenticated"
 }
 ```
+

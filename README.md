@@ -6,10 +6,12 @@ This is a Splunk custom REST endpoint to consolidate many status/health checks i
 * Is exposed on Splunk's web port and accessible via:
     * `/splunkd/__raw/services/status/v1/health` on the web port
     * `/services/status/v1/health` on the management port
-* Requires no authentication by default
+* Requires no authentication by default for the exposed REST endpoint
     * Can set `requireAuthentication=true` in [restmap.conf](status/default/restmap.conf) to turn it on
         * If `requireAuthentication=true` is used then the endpoint needs to be accessed via the management port.
     * Can set `acceptFrom` in [restmap.conf](status/default/restmap.conf) to limit what IPs can access
+* Authentication is required for the REST endpoint to access splunkd API internally.
+    * See [Create authentication tokens](https://docs.splunk.com/Documentation/Splunk/latest/Security/CreateAuthTokens) on how to set up a token. The token is required in the endpoint configuration file - [status_rest_handler.conf](status/default/status_rest_handler.conf)
 
 ## Checks
 All checks are on by default with the exception of the *web port* check. Since this endpoint is exposed via the web port, that check is good as long as the endpoint is working. If using the management port, the *web port* check could be turned on.

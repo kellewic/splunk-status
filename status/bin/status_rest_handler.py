@@ -22,7 +22,7 @@ import certifi, rest_handler
 import splunklib.client as client
 
 ## Constants
-DEFAULT = "default"
+CONF_STANZA_NAME = "status"
 HEC_PORT = "hec_port"
 HEC_IP = "hec_ip"
 HEC_STATUS = "hec_status"
@@ -87,9 +87,9 @@ class StatusHandler_v1(rest_handler.RESTHandler):
             try:
                 local_config = ConfigMap(conf_file_local_path)
             except:
-                local_config = {DEFAULT: {}}
+                local_config = {CONF_STANZA_NAME: {}}
 
-            self.config = splunk.util.normalizeBoolean({**(default_config[DEFAULT]), **(local_config[DEFAULT])})
+            self.config = splunk.util.normalizeBoolean({**(default_config[CONF_STANZA_NAME]), **(local_config[CONF_STANZA_NAME])})
 
         except ConfigMapError as e:
             self.return_now = self.render_error_json("Config file at {} does not exist".format(conf_file_default_path))

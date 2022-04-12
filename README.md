@@ -42,10 +42,11 @@ JSON is returned with the following formats.
         "kvstore_standalone": "0",
         "kvstore_status": "ready",
         "overall_status": 1,
+        "shc_captain_service_ready_flag": "1",
         "shc_is_registered": "1",
         "shc_maintenance_mode": "0",
+        "shc_out_of_sync_node": "0",
         "shc_status": "up",
-        "shc_captain_service_ready_flag": "1",
         "splunkd_status": "ready",
         "web_status": null
     },

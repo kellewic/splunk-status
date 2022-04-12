@@ -1,4 +1,5 @@
 import logging, os, re, requests, socket, sys
+import json
 import splunk
 import splunk.entity
 import splunk.util
@@ -33,10 +34,11 @@ KVSTORE_STANDALONE = "kvstore_standalone"
 KVSTORE_STATUS = "kvstore_status"
 OVERALL_STATUS = "overall_status"
 READY = "ready"
+SHC_CAPTAIN_SERVICE_READY_FLAG = "shc_captain_service_ready_flag"
 SHC_IS_REGISTERED = "shc_is_registered"
 SHC_MAINTENANCE_MODE = "shc_maintenance_mode"
+SHC_OUT_OF_SYNC_NODE = "shc_out_of_sync_node"
 SHC_STATUS = "shc_status"
-SHC_CAPTAIN_SERVICE_READY_FLAG = "shc_captain_service_ready_flag"
 SPLUNKD_STATUS = "splunkd_status"
 TOKEN = "token"
 WEB_STATUS = "web_status"
@@ -60,10 +62,11 @@ class StatusHandler_v1(rest_handler.RESTHandler):
             KVSTORE_STANDALONE: None,
             KVSTORE_STATUS: None,
             OVERALL_STATUS: -1,
+            SHC_CAPTAIN_SERVICE_READY_FLAG: None,
             SHC_IS_REGISTERED: None,
             SHC_MAINTENANCE_MODE: None,
+            SHC_OUT_OF_SYNC_NODE: None,
             SHC_STATUS: None,
-            SHC_CAPTAIN_SERVICE_READY_FLAG: None,
             SPLUNKD_STATUS: None,
             WEB_STATUS: None,
         }
@@ -141,12 +144,12 @@ class StatusHandler_v1(rest_handler.RESTHandler):
             self.health_data[OVERALL_STATUS] = 1
 
     ## Wrapper around splunk.getEntity() to catch and return common exceptions
-    def get_entity(self, entityPath, entityName, namespace=None, sessionKey=None):
+    def get_entity(self, entityPath, entityName, namespace=None, sessionKey=None, owner="nobody", **kwargs):
         error = None
         entity = None
 
         try:
-            entity = splunk.entity.getEntity(entityPath, entityName, namespace=namespace, sessionKey=sessionKey, owner='-')
+            entity = splunk.entity.getEntity(entityPath, entityName, namespace=namespace, sessionKey=sessionKey, owner=owner, **kwargs)
 
         except splunk.ResourceNotFound as e:
             message = "There was an issue accessing /services{}/{} REST endpoint. The resource could not be found.".format(entityPath, entityName)
@@ -165,18 +168,28 @@ class StatusHandler_v1(rest_handler.RESTHandler):
             return self.return_now
 
         try:
-            entity = None
+            ## authentication token
             session_key = None
+            
+            ## object returned from REST calls
+            entity = None
+
+            ## name and guid of this host
+            my_name = None
+            my_guid = None
+
+            ## configuration setting values
             in_shc = self.get_config_value(IN_SHC, bool)
             hec_status = self.get_config_value(HEC_STATUS, bool)
             kvstore_disabled = self.get_config_value(KVSTORE_DISABLED, bool)
             kvstore_standalone = self.get_config_value(KVSTORE_STANDALONE, bool)
             kvstore_status = self.get_config_value(KVSTORE_STATUS, bool)
             kvstore_replication_status = self.get_config_value(KVSTORE_REPLICATION_STATUS, bool)
+            shc_captain_service_ready_flag = self.get_config_value(SHC_CAPTAIN_SERVICE_READY_FLAG, bool)
             shc_is_registered = self.get_config_value(SHC_IS_REGISTERED, bool)
             shc_maintenance_mode = self.get_config_value(SHC_MAINTENANCE_MODE, bool)
+            shc_out_of_sync_node = self.get_config_value(SHC_OUT_OF_SYNC_NODE, bool)
             shc_status = self.get_config_value(SHC_STATUS, bool)
-            shc_captain_service_ready_flag = self.get_config_value(SHC_CAPTAIN_SERVICE_READY_FLAG, bool)
             web_status = self.get_config_value(WEB_STATUS, bool)
 
             ## If an auth token comes from an active user session or via Authorization header
@@ -186,6 +199,15 @@ class StatusHandler_v1(rest_handler.RESTHandler):
             else:
                 session_key = self.get_config_value(TOKEN)
 
+            ## Get information about this host
+            (entity, error) = self.get_entity('/server', 'info', namespace=app_name, sessionKey=session_key)
+
+            if error is not None:
+                return error
+
+            my_name = entity["host"]
+            my_guid = entity["guid"]
+
 
             ## Call KV store endpoint if configuration requires it
             if kvstore_status or kvstore_replication_status or kvstore_disabled or kvstore_standalone:
@@ -193,14 +215,6 @@ class StatusHandler_v1(rest_handler.RESTHandler):
 
                 if error is not None:
                     return error
-
-            else:
-                ## If kvstore status isn't configured, this checks the splunkd port
-                (entity, error) = self.get_entity('/server', 'settings', namespace=app_name, sessionKey=session_key)
-
-                if error is not None:
-                    return error
-
 
             ## If we get here then the splunkd port is working
             self.process_status(True, SPLUNKD_STATUS, READY, READY_LIST)
@@ -227,12 +241,23 @@ class StatusHandler_v1(rest_handler.RESTHandler):
                 self.process_status(shc_status, SHC_STATUS, entity["status"], ["Up"])
 
                 ## SHC status
-                (entity, error) = self.get_entity('/shcluster', 'status', namespace=app_name, sessionKey=session_key)
+                (entity, error) = self.get_entity('/shcluster', 'status', namespace=app_name, sessionKey=session_key, advanced=True)
 
                 if error is not None:
                     return error
 
                 self.process_status(shc_captain_service_ready_flag, SHC_CAPTAIN_SERVICE_READY_FLAG, entity["captain"]["service_ready_flag"], ONE_LIST)
+
+                ## Find this hosts' entry in the cluster peers list
+                peers = entity['peers']
+
+                for guid, props in peers.items():
+                    ## check both guid and serverName for a match
+                    if guid == my_guid:
+                        entry = peers[guid]
+
+                        if entry['label'] == my_name:
+                            self.process_status(shc_out_of_sync_node, SHC_OUT_OF_SYNC_NODE, entry['out_of_sync_node'], ZERO_LIST)
 
             else:
                 ## "1" is a valid value for non-SHC kvstore

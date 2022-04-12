@@ -46,7 +46,6 @@ JSON is returned with the following formats.
         "shc_maintenance_mode": "0",
         "shc_status": "up",
         "shc_captain_service_ready_flag": "1",
-        "shc_captain_initialized_flag": "1",
         "splunkd_status": "ready",
         "web_status": null
     },

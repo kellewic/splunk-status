@@ -37,7 +37,6 @@ SHC_IS_REGISTERED = "shc_is_registered"
 SHC_MAINTENANCE_MODE = "shc_maintenance_mode"
 SHC_STATUS = "shc_status"
 SHC_CAPTAIN_SERVICE_READY_FLAG = "shc_captain_service_ready_flag"
-SHC_CAPTAIN_INITIALIZED_FLAG = "shc_captain_initialized_flag"
 SPLUNKD_STATUS = "splunkd_status"
 TOKEN = "token"
 WEB_STATUS = "web_status"
@@ -65,7 +64,6 @@ class StatusHandler_v1(rest_handler.RESTHandler):
             SHC_MAINTENANCE_MODE: None,
             SHC_STATUS: None,
             SHC_CAPTAIN_SERVICE_READY_FLAG: None,
-            SHC_CAPTAIN_INITIALIZED_FLAG: None,
             SPLUNKD_STATUS: None,
             WEB_STATUS: None,
         }
@@ -179,7 +177,6 @@ class StatusHandler_v1(rest_handler.RESTHandler):
             shc_maintenance_mode = self.get_config_value(SHC_MAINTENANCE_MODE, bool)
             shc_status = self.get_config_value(SHC_STATUS, bool)
             shc_captain_service_ready_flag = self.get_config_value(SHC_CAPTAIN_SERVICE_READY_FLAG, bool)
-            shc_captain_initialized_flag = self.get_config_value(SHC_CAPTAIN_INITIALIZED_FLAG, bool)
             web_status = self.get_config_value(WEB_STATUS, bool)
 
             ## If an auth token comes from an active user session or via Authorization header
@@ -236,7 +233,6 @@ class StatusHandler_v1(rest_handler.RESTHandler):
                     return error
 
                 self.process_status(shc_captain_service_ready_flag, SHC_CAPTAIN_SERVICE_READY_FLAG, entity["captain"]["service_ready_flag"], ONE_LIST)
-                self.process_status(shc_captain_initialized_flag, SHC_CAPTAIN_INITIALIZED_FLAG, entity["captain"]["initialized_flag"], ONE_LIST)
 
             else:
                 ## "1" is a valid value for non-SHC kvstore

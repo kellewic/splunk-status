@@ -4,6 +4,7 @@ import splunk
 import splunk.entity
 import splunk.util
 from splunk.conf_util import ConfigMap, ConfigMapError
+from splunk.clilib.bundle_paths import make_splunkhome_path
 
 file_realpath = os.path.realpath(__file__)
 script_dir = os.path.dirname(file_realpath)
@@ -19,7 +20,7 @@ logger = logging.getLogger(script_name)
 
 ## app-specific libs
 sys.path.insert(0, os.path.join(script_dir, "..", "lib"))
-import certifi, rest_handler
+import certifi, rest_handler, splunksecrets
 import splunklib.client as client
 
 ## Constants
@@ -81,6 +82,9 @@ class StatusHandler_v1(rest_handler.RESTHandler):
         ## when caught within __init__
         self.return_now = None
 
+        ## decrypted authentication token
+        self.session_key = None
+
         try:
             default_config = ConfigMap(conf_file_default_path)
 
@@ -108,6 +112,38 @@ class StatusHandler_v1(rest_handler.RESTHandler):
     ## Get config value for entry and cast to "typ" if specified; otherwise it's returned as str
     def get_config_value(self, entry, typ=str):
         return typ(self.config.get(entry, None))
+
+    ## Get authentication token
+    def get_session_key(self, request_info):
+        ## If we've already gone through this, return cached copy
+        if self.session_key is not None:
+            return self.session_key
+
+        ## If an auth token comes from an active user session or via Authorization header
+        ## use it over what exists in the config files.
+        if request_info.session_key is not None:
+            session_key = request_info.session_key
+        else:
+            session_key = self.get_config_value(TOKEN)
+
+
+        ## is token from configuration encrypted
+        if splunksecrets.is_encrypted(session_key):
+            with open('/tmp/AAAAAAA', 'w') as f:
+                f.write("SESSION_KEY1: {}\n".format(session_key))
+
+                session_key = splunksecrets.decrypt(session_key, splunk_secret_path=make_splunkhome_path(["etc", "auth", "splunk.secret"]))
+
+                f.write("SESSION_KEY2: {}\n".format(session_key))
+
+        else:
+            with open('/tmp/AAAAAAA', 'w') as f:
+                f.write("SESSION_KEY3: {}\n".format(session_key))
+
+        ## cache result
+        self.session_key = session_key
+
+        return session_key
 
     ## Set health check value
     def set_health_data_entry(self, entry, val):
@@ -192,12 +228,8 @@ class StatusHandler_v1(rest_handler.RESTHandler):
             shc_status = self.get_config_value(SHC_STATUS, bool)
             web_status = self.get_config_value(WEB_STATUS, bool)
 
-            ## If an auth token comes from an active user session or via Authorization header
-            ## use it over what exists in the config files.
-            if request_info.session_key is not None:
-                session_key = request_info.session_key
-            else:
-                session_key = self.get_config_value(TOKEN)
+
+            session_key = self.get_session_key(request_info)
 
             ## Get information about this host
             (entity, error) = self.get_entity('/server', 'info', namespace=app_name, sessionKey=session_key)
@@ -249,15 +281,16 @@ class StatusHandler_v1(rest_handler.RESTHandler):
                 self.process_status(shc_captain_service_ready_flag, SHC_CAPTAIN_SERVICE_READY_FLAG, entity["captain"]["service_ready_flag"], ONE_LIST)
 
                 ## Find this hosts' entry in the cluster peers list
-                peers = entity['peers']
+                if shc_out_of_sync_node:
+                    peers = entity['peers']
 
-                for guid, props in peers.items():
-                    ## check both guid and serverName for a match
-                    if guid == my_guid:
-                        entry = peers[guid]
+                    for guid, props in peers.items():
+                        ## check both guid and serverName for a match
+                        if guid == my_guid:
+                            entry = peers[guid]
 
-                        if entry['label'] == my_name:
-                            self.process_status(shc_out_of_sync_node, SHC_OUT_OF_SYNC_NODE, entry['out_of_sync_node'], ZERO_LIST)
+                            if entry['label'] == my_name:
+                                self.process_status(shc_out_of_sync_node, SHC_OUT_OF_SYNC_NODE, entry['out_of_sync_node'], ZERO_LIST)
 
             else:
                 ## "1" is a valid value for non-SHC kvstore

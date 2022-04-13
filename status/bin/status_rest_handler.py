@@ -149,15 +149,16 @@ class StatusHandler_v1(rest_handler.RESTHandler):
                 session_key = decrypt(session_key)
 
             else:
-                ## get config file entity
-                (entity, error) = self.get_entity("/configs/conf-{}".format(CONF_FILE_NAME), CONF_STANZA_NAME, namespace=app_name, sessionKey=session_key)
+                if session_key and len(session_key) > 0:
+                    ## get config file entity
+                    (entity, error) = self.get_entity("/configs/conf-{}".format(CONF_FILE_NAME), CONF_STANZA_NAME, namespace=app_name, sessionKey=session_key)
 
-                if error is not None:
-                    logger.error(error)
+                    if error is not None:
+                        logger.error(error)
 
-                ## save encrypted token to entity, which ends up in APP/local/conf_file.conf
-                entity[TOKEN] = self.encrypt(session_key)
-                saved = splunk.entity.setEntity(entity, sessionKey=session_key)
+                    ## save encrypted token to entity, which ends up in APP/local/conf_file.conf
+                    entity[TOKEN] = self.encrypt(session_key)
+                    splunk.entity.setEntity(entity, sessionKey=session_key)
 
         return session_key
 

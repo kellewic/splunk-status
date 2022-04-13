@@ -19,6 +19,8 @@ def get_splunk_secret(splunk_secret_path=DEFAULT_SPLUNK_SECRET_PATH):
 
     return secret
 
+def is_encrypted(text):
+    return text.startswith("$7$")
 
 def b64decode(encoded):
     """Wrapper around `base64.b64decode` to add padding if necessary"""
@@ -31,9 +33,9 @@ def b64decode(encoded):
 def decrypt(ciphertext, splunk_secret_path=DEFAULT_SPLUNK_SECRET_PATH):
     plaintext = None
 
-    secret = get_splunk_secret(splunk_secret_path)
+    secret = get_splunk_secret(splunk_secret_path=splunk_secret_path)
 
-    if ciphertext.startswith("$7$"):
+    if is_encrypted(ciphertext):
         ciphertext = b64decode(ciphertext[3:])
 
         kdf = PBKDF2HMAC(
@@ -60,7 +62,7 @@ def decrypt(ciphertext, splunk_secret_path=DEFAULT_SPLUNK_SECRET_PATH):
 def encrypt_new(plaintext, splunk_secret_path=DEFAULT_SPLUNK_SECRET_PATH):
     """Use the new AES 256 GCM encryption in Splunk 7.2"""
 
-    secret = get_splunk_secret(splunk_secret_path)
+    secret = get_splunk_secret(splunk_secret_path=splunk_secret_path)
 
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),

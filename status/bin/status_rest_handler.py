@@ -1,10 +1,10 @@
-import logging, os, re, requests, socket, sys
+import logging, os, re, requests, socket, subprocess, sys
 import json
 import splunk
 import splunk.entity
 import splunk.util
 from splunk.conf_util import ConfigMap, ConfigMapError
-from splunk.clilib.bundle_paths import make_splunkhome_path
+from splunk.clilib.cli_common import decrypt, isWindows, splunk_home
 
 file_realpath = os.path.realpath(__file__)
 script_dir = os.path.dirname(file_realpath)
@@ -20,10 +20,11 @@ logger = logging.getLogger(script_name)
 
 ## app-specific libs
 sys.path.insert(0, os.path.join(script_dir, "..", "lib"))
-import certifi, rest_handler, splunksecrets
+import certifi, rest_handler
 import splunklib.client as client
 
 ## Constants
+CONF_FILE_NAME = "status_rest_handler"
 CONF_STANZA_NAME = "status"
 HEC_PORT = "hec_port"
 HEC_IP = "hec_ip"
@@ -82,9 +83,6 @@ class StatusHandler_v1(rest_handler.RESTHandler):
         ## when caught within __init__
         self.return_now = None
 
-        ## decrypted authentication token
-        self.session_key = None
-
         try:
             default_config = ConfigMap(conf_file_default_path)
 
@@ -113,35 +111,53 @@ class StatusHandler_v1(rest_handler.RESTHandler):
     def get_config_value(self, entry, typ=str):
         return typ(self.config.get(entry, None))
 
+    ## encrypt text using splunk.secret
+    def encrypt(self, text):
+        launcher_path = os.path.join(splunk_home, "bin", "splunk")
+
+        if isWindows:
+            launcher_path += ".exe"
+
+        cmd = [launcher_path, 'show-encrypted', '--value', text]
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = p.communicate()
+
+        if sys.version_info >= (3, 0):
+            out = out.decode()
+            err = err.decode()
+
+        # p.returncode is always 0 so check stderr
+        if err:
+            logger.error('Failed to encrypt value: {}, error: {}'.format(value, err))
+            return None
+
+        return out.strip()
+
     ## Get authentication token
     def get_session_key(self, request_info):
-        ## If we've already gone through this, return cached copy
-        if self.session_key is not None:
-            return self.session_key
-
-        ## If an auth token comes from an active user session or via Authorization header
-        ## use it over what exists in the config files.
+        ## If an auth token comes from an active user session or via Authorization
+        ## header, use it over what exists in the config files.
         if request_info.session_key is not None:
             session_key = request_info.session_key
+
         else:
+            ## get token from config
             session_key = self.get_config_value(TOKEN)
 
+            ## is token encrypted?
+            if session_key.startswith("$7$"):
+                session_key = decrypt(session_key)
 
-        ## is token from configuration encrypted
-        if splunksecrets.is_encrypted(session_key):
-            with open('/tmp/AAAAAAA', 'w') as f:
-                f.write("SESSION_KEY1: {}\n".format(session_key))
+            else:
+                ## get config file entity
+                (entity, error) = self.get_entity("/configs/conf-{}".format(CONF_FILE_NAME), CONF_STANZA_NAME, namespace=app_name, sessionKey=session_key)
 
-                session_key = splunksecrets.decrypt(session_key, splunk_secret_path=make_splunkhome_path(["etc", "auth", "splunk.secret"]))
+                if error is not None:
+                    logger.error(error)
 
-                f.write("SESSION_KEY2: {}\n".format(session_key))
-
-        else:
-            with open('/tmp/AAAAAAA', 'w') as f:
-                f.write("SESSION_KEY3: {}\n".format(session_key))
-
-        ## cache result
-        self.session_key = session_key
+                ## save encrypted token to entity, which ends up in APP/local/conf_file.conf
+                entity[TOKEN] = self.encrypt(session_key)
+                saved = splunk.entity.setEntity(entity, sessionKey=session_key)
 
         return session_key
 
@@ -205,7 +221,7 @@ class StatusHandler_v1(rest_handler.RESTHandler):
 
         try:
             ## authentication token
-            session_key = None
+            session_key = self.get_session_key(request_info)
             
             ## object returned from REST calls
             entity = None
@@ -229,7 +245,6 @@ class StatusHandler_v1(rest_handler.RESTHandler):
             web_status = self.get_config_value(WEB_STATUS, bool)
 
 
-            session_key = self.get_session_key(request_info)
 
             ## Get information about this host
             (entity, error) = self.get_entity('/server', 'info', namespace=app_name, sessionKey=session_key)

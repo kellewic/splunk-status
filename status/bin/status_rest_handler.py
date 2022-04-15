@@ -26,6 +26,7 @@ import splunklib.client as client
 ## Constants
 CONF_FILE_NAME = "status_rest_handler"
 CONF_STANZA_NAME = "status"
+ENCRYPT_TOKEN = "encrypt_token"
 HEC_PORT = "hec_port"
 HEC_IP = "hec_ip"
 HEC_STATUS = "hec_status"
@@ -149,7 +150,13 @@ class StatusHandler_v1(rest_handler.RESTHandler):
                 session_key = decrypt(session_key)
 
             else:
-                if session_key and len(session_key) > 0:
+                ## only check when we encrypt in case the token was previously encrypted and then the configuration
+                ## changed. Leave it encrypted on disk in case the admin_all_objects capability was removed from 
+                ## the user the token was issued to. If the token was never encrypted, then the check above won't 
+                ## match anyway.
+                encrypt_token = self.get_config_value(ENCRYPT_TOKEN, bool)
+
+                if encrypt_token and session_key and len(session_key) > 0:
                     ## get config file entity
                     (entity, error) = self.get_entity("/configs/conf-{}".format(CONF_FILE_NAME), CONF_STANZA_NAME, namespace=app_name, sessionKey=session_key)
 
@@ -363,8 +370,7 @@ class StatusHandler_v1(rest_handler.RESTHandler):
 
             return self.render_json({
                 'message': self.health_data,
-                'success': success,
-                'iter': 'PAYLOAD_56',
+                'success': success
             }, response_code=response_code)
 
         except Exception as e:

@@ -16,7 +16,9 @@ This is a Splunk custom REST endpoint to consolidate many status/health checks i
         * `list_search_head_clustering`
         * `search`
         * `list_settings`
+        * `admin_all_objects` if using token encryption
     * The token is required in the endpoint configuration file - [status_rest_handler.conf](status/default/status_rest_handler.conf)
+    * There's an option to encrypt the configuration file `token` value in the same manner as pass4SymmKeys named `encrypt_token`, which is set to `0` by default. If turned on, the user the token is issued to requires the `admin_all_objects` capability.
 
 ## Checks
 All checks are on by default with the exception of the *web port* check. Since this endpoint is exposed via the web port, that check is good as long as the endpoint is working. If using the management port, the *web port* check could be turned on.

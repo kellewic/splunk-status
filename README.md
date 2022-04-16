@@ -20,6 +20,9 @@ This is a Splunk custom REST endpoint to consolidate many status/health checks i
     * The token is required in the endpoint configuration file - [status_rest_handler.conf](status/default/status_rest_handler.conf)
     * There's an option to encrypt the configuration file `token` value in the same manner as pass4SymmKeys named `encrypt_token`, which is set to `0` by default. If turned on, the user the token is issued to requires the `admin_all_objects` capability.
 
+## Authentication Token
+The authentication token can be set directly in [status_rest_handler.conf](status/default/status_rest_handler.conf) or via the app's setup page, which you can access using `/app/status/setup_page_dashboard` URI on your Splunk server. Once set, it is encrypted on first use of the status endpoint in the same manner as Splunk's pass4SymmKeys.
+
 ## Checks
 All checks are on by default with the exception of the *web port* check. Since this endpoint is exposed via the web port, that check is good as long as the endpoint is working. If using the management port, the *web port* check could be turned on.
 * kvstore status

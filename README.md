@@ -19,7 +19,7 @@ This is a Splunk custom REST endpoint to consolidate many status/health checks i
     * The token is required in the endpoint configuration file - [status_rest_handler.conf](status/default/status_rest_handler.conf)
 
 ## Authentication Token
-The authentication token can be set directly in [status_rest_handler.conf](status/default/status_rest_handler.conf) or via the app's configuration page, which you can access using `/app/status/setup_page_dashboard` URI on your Splunk server. If set in the configuration file directly, it's not encrypted. If set using the setup page, it's encrypted before being saved to the configuration file.
+The authentication token can be set directly in [status_rest_handler.conf](status/default/status_rest_handler.conf) or via the app's configuration page, which you can access using `/app/status/setup_page_dashboard` URI on your Splunk server. If set in the configuration file directly, it's not encrypted. If set using the configuration page, it's encrypted before being saved to the configuration file.
 
 ## Checks
 All checks are on by default with the exception of the *web port* check. Since this endpoint is exposed via the web port, that check is good as long as the endpoint is working. If using the management port, the *web port* check could be turned on.

@@ -37,6 +37,8 @@ KVSTORE_STANDALONE = "kvstore_standalone"
 KVSTORE_STATUS = "kvstore_status"
 OVERALL_STATUS = "overall_status"
 READY = "ready"
+SERVER_GUID = "server_guid"
+SERVER_NAME = "server_name"
 SHC_CAPTAIN_SERVICE_READY_FLAG = "shc_captain_service_ready_flag"
 SHC_IS_REGISTERED = "shc_is_registered"
 SHC_MAINTENANCE_MODE = "shc_maintenance_mode"
@@ -214,16 +216,16 @@ class StatusHandler_v1(rest_handler.RESTHandler):
         if self.return_now is not None:
             return self.return_now
 
+        ## name and guid of this host
+        my_name = None
+        my_guid = None
+
         try:
             ## authentication token
             session_key = self._get_session_key(request_info)
             
             ## object returned from REST calls
             entity = None
-
-            ## name and guid of this host
-            my_name = None
-            my_guid = None
 
             ## configuration setting values
             in_shc = self._get_config_value(IN_SHC, bool)
@@ -348,6 +350,9 @@ class StatusHandler_v1(rest_handler.RESTHandler):
         try:
             response_code = 200
             success = True
+
+            self.health_data[SERVER_NAME] = my_name
+            self.health_data[SERVER_GUID] = my_guid
 
             self._set_overall_status()
 

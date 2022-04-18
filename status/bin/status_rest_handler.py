@@ -102,11 +102,16 @@ class StatusHandler_v1(rest_handler.RESTHandler):
             self.return_now = self._render_generic_error_json(e)
 
     ## Send back a generic error message
-    def _render_generic_error_json(self, e, message=None):
+    def _render_generic_error_json(self, e, message=None, response_code=500):
         if message is None:
             message = str(e)
 
-        return self.render_error_json("[ERROR] <{}> {}".format(str(type(e).__name__), message))
+        error_name = str(type(e).__name__)
+
+        if error_name == "AuthenticationFailed":
+            response_code = 401
+
+        return self.render_error_json("[ERROR] <{}> {}".format(error_name, message), response_code=response_code)
 
     ## Get config value for entry and cast to "typ" if specified; otherwise it's returned as str
     def get_config_value(self, entry, typ=str):

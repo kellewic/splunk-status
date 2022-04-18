@@ -10,47 +10,45 @@ export async function perform(splunk_js_sdk, setup_options) {
     };
 
     try {
-        var http = new splunk_js_sdk.SplunkWebHttp();
+        const http = new splunk_js_sdk.SplunkWebHttp();
         const splunk_js_sdk_service = new splunk_js_sdk.Service(
             http,
             application_name_space
         );
 
-        var configurations = splunk_js_sdk_service.configurations(application_name_space);
-        await configurations.fetch();
-
-        // update configuration file
-        var config_file = configurations.item('status_rest_handler');
-        await config_file.fetch();
-
-        var stanza = config_file.item('status');
-        await stanza.fetch();
-
-        await stanza.update(setup_options, function(err, entity){
+        // encrypt the token using custom REST endpoint
+        await splunk_js_sdk_service.get("/services/status/v1/encrypt", setup_options, function(err, response){
             if (err != null){
                 console.log("ERROR: " + err);
             }
+
+            setup_options.token = response.data.message;
         });
 
-        /*
-        // set app to configured and reload it
-        var applications = splunk_js_sdk_service.apps();
-        await applications.fetch();
-        
-        var app = applications.item(app_name);
-        await app.fetch();
+        // check that token is encrypted
+        if (setup_options.token.startsWith('$7$')){
+            delete setup_options.output_mode;
 
-        await app.post("", {configured: true}, function(err, response){
-            if (err != null){
-                console.log("ERROR: " + err);
-            }
-            else if (response.status != 200) {
-                console.log(response);
-            }
-        });
+            var configurations = splunk_js_sdk_service.configurations(application_name_space);
+            await configurations.fetch();
 
-        await app.reload();
-        */
+            // update configuration file
+            var config_file = configurations.item('status_rest_handler');
+            await config_file.fetch();
+
+            var stanza = config_file.item('status');
+            await stanza.fetch();
+
+            await stanza.update(setup_options, function(err, entity){
+                if (err != null){
+                    console.log("ERROR: " + err);
+                }
+            });
+        }
+        else {
+            // token string is likely empty if we get here
+            console.log("TOKEN NOT ENCRYPTED");
+        }
     }
     catch (err) {
         console.log('ERROR: ' + err);

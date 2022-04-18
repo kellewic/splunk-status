@@ -35,7 +35,7 @@ define(["react", "splunkjs/splunk"], function(react, splunk_js_sdk){
                 ]),
                 e("div", null, [
                     e("form", { onSubmit: this.handleSubmit }, [
-                        e("textarea", { name: "token", value: this.state.token, onChange: this.handleChange, autofocus: true, rows: 6 }),
+                        e("textarea", { name: "token", value: this.state.token, onChange: this.handleChange, autofocus: true, required: true, rows: 6 }),
                         e("input", { type: "submit", value: "Submit" })
                     ])
                 ])

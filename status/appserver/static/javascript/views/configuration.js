@@ -1,7 +1,17 @@
 "use strict";
 
 export async function perform(splunk_js_sdk, setup_options) {
-    var app_name = "status";
+	// default app name
+	var app_name = "status";
+
+	// in case the app gets renamed, figure it out dynamically
+	var matches = window.location.href.match(/^.*?\/app\/(?<app_name>.*?)\/.*$/);
+
+	if (matches){
+		if (matches.groups && matches.groups['app_name']){
+			app_name = matches.groups['app_name'];
+		}
+	}
 
     var application_name_space = {
         owner: "nobody",

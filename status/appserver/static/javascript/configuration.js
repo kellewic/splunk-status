@@ -1,6 +1,16 @@
 "use strict";
 
+// default app name
 var app_name = "status";
+
+// in case the app gets renamed, figure it out dynamically
+var matches = window.location.href.match(/^.*?\/app\/(?<app_name>.*?)\/.*$/);
+
+if (matches){
+    if (matches.groups && matches.groups['app_name']){
+        app_name = matches.groups['app_name'];
+    }
+}
 
 require.config({
     paths: {
